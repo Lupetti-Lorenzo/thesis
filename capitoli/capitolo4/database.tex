@@ -1,0 +1,124 @@
+\section{Database}
+
+QUI manca la parte dove faccio differenza con DynamoDB
+
+
+\subsection{Bastion Host}
+
+Il bastion host è una macchina virtuale EC2 che funge da punto di accesso controllato per interazioni di basso livello con l’istanza RDS, come creazione di utenti con privilegi limitati per gli altri servizi e creazione di database e tabelle.  Risiede nella Subnet Privata con Egress per potersi collegare dall’esterno.
+
+\vspace{0,3cm}
+
+L'istanza della macchina EC2 è di classe T2 e size Micro, l'istanza più piccola possibile, con versione Linux AmazonLinux2023.
+
+La risorsa viene inizializzata attraverso scripts \texttt{cloud-init} (per approfondire visitare la \href{https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html}{documentazione AWS}) per:
+
+\begin{itemize}
+    \item  configurazione iniziale, per installare le dipendenze necessarie, come aws-cli. 
+    \item fornire scripts utili tipo get-aws-secrets e db-connect
+    \item inizializzare crono di auto-shutdown
+\end{itemize}
+
+La gestione delle credenziali di accesso alla macchina è eliminata grazie all’autenticazione tramite SSO, che rimuove inoltre la necessità di esporre il server alla rete pubblica aumentando la sicurezza.
+
+Il bastion è progettato per essere una risorsa temporanea, quindi per ottimizzare efficienza e costi si spegnerà automaticamente dopo 30 minuti di inattività.
+
+
+\subsection{Database}
+
+Per la gestione dei dati, è stata adottata un'istanza RDS, con configurazione: 
+\begin{itemize}
+    \item \texttt{engine:} PostgreSQL v16.
+    \item \texttt{memoria:} 20GB con la possibiltà di scalare automaticamente fino a 105GB. Memoria SSD di tipo \href{https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Storage.html#Concepts.Storage.GeneralSSD}{GP2}.
+    \item \texttt{istanza:} classe T2 e size Micro.
+\end{itemize}
+L’istanza viene dispiegata nella subnet privata in modalità Multi-AZ, quindi replicata nelle 2 availability zones, per assicurare alta disponibilità. Nel caso di necessità di scalabilità può essere valutata una migrazione a RDS con Aurora Serverless V2.
+
+Per testare durante lo sviluppo, invece di mantenere tunnel tramite bastion (sezione \ref{sub:connessione_db}) e lavorare sul database dell'ambiente di DEV, ho preferito lanciare un istanza Postgres in locale.
+
+\subsubsection{Gestione utenti}
+Il database ha un account amministratore, dedicato alle operazioni di manutenzione attraverso il bastion host. L’unico altro utente è assegnato all’API, con privilegi di R/W sulle tabelle. 
+Alla creazione dell’istanza, vengono creati anche i segreti contenenti le credenziali per i suddetti utenti, che verranno consumate tramite Secrets Manager.
+Di seguito il codice SQL eseguito per creare l'utente applicativo:
+
+\lstinputlisting[
+    language=SQL,
+    caption={Creazione utente per l'API con R/W sulle tabelle },
+    label={lst:db_utente}
+]{code/database/create_db_user.sql}
+
+Questa procedura è stata eseguita manualmente successivamente alla creazione del database, acquisendo la password attraverso Secrets Manager. Inoltre, se vengono create delle tabelle, è necessario assegnare anche i relativi permessi, seguendo le istruzioni dalla riga 4 alla riga 14. 
+
+\subsubsection{Connessione all'istanza}
+\label{sub:connessione_db}
+Per accedere all'istanza del database, utilizzo il bastion host come tunnel verso l'istanza del database nella rete privata. Questo processo permette di mappare l'indirizzo IP e la porta del bastion (che a sua volta si connette all'indirizzo IP e alla porta privata dell'istanza) in locale. A questo scopo, ho sviluppato uno script bash che automatizza il processo di configurazione e avvio del tunnel. Lo script cerca l'istanza EC2 nell'account AWS e ne estrae l'ID e se la macchina è spenta viene svegliata. Successivamente, recupera le credenziali di accesso al database da AWS Secrets Manager e, infine, avvia una sessione con AWS Systems Manager (SSM) utilizzando come target il bastion.
+
+Ecco il codice bash che implementa questo processo:
+
+\lstinputlisting[
+    language=Bash,
+    caption={Script bash tunnel.sh per connettersi all'istanza del databse},
+    label={lst:tunnel}
+]{code/database/tunnel.sh}
+
+Per quanto riguarda AWS SSM, è un servizio che consente di eseguire comandi su istanze EC2 in modo sicuro e senza dover effettuare una connessione diretta tramite SSH. Utilizzando SSM, è possibile gestire le risorse EC2 in modo centralizzato, senza dover esporre le istanze direttamente alla rete pubblica. Utilizzando il comando start-session di AWS SSM, è possibile avviare una sessione interattiva con un'istanza EC2 tramite il bastion host, consentendo l'accesso sicuro al database tramite il tunnel stabilito.
+
+\vspace{0,3cm}
+
+Una volta avviato il tunnel, è possibile collegarsi sostanzialmente in 2 modi:
+\begin{itemize}
+    \item \texttt{Linea di comando:} con un tool come \texttt{psql} posso avviare una sessione interattiva da terminale.
+    
+    \lstinline[language=Bash]{psql -p 5432 -h 127.0.0.1 -U username -d database_name}
+
+    \item \texttt{Applicativo:} una applicazione desktop con GUI come \texttt{PGAdmin}, che fornisce molte funzioni per visualizzare e interagire con il database.
+\end{itemize}
+
+
+\subsubsection{Gestione schema e Migrazioni}
+Per l'evoluzione dello schema del database, è stato scelto \texttt{Prisma}, che fornisce una solida piattaforma per la gestione delle migrazioni dei dati. Grazie a Prisma, è possibile eseguire in modo efficiente l'aggiornamento dello schema del database, garantendo una transizione fluida e sicura tra le diverse versioni.
+Le funzionalità di migrazione offerte da Prisma consentono di apportare modifiche agli schemi del database in modo controllato e reversibile, assicurando la coerenza e l'integrità dei dati durante il processo di evoluzione. L'approccio dichiarativo di Prisma facilita la definizione chiara e concisa delle modifiche da apportare, semplificando così la gestione delle versioni e agevolando il mantenimento della base dati nel corso del tempo. Prisma utilizza il linguaggio proprietario con estenzione .prisma per definire  la struttura delle tabelle, le relazioni tra di esse, i tipi di dati e le regole di validazione.
+
+\vspace{0,3cm}
+
+Per utilizzare Prisma nel progetto, ho scaricato tramite NPM come dipendenza di sviluppo il pacchetto \texttt{prisma}, il tool da linea di comando.
+
+Il file principale contenente lo schema è schema.prisma. Dato che avevo già definito lo schema tramite SQL, mi è bastato eseguire \lstinline[language=Bash]{npx prisma db pull} per inizializzare il file con lo schema del database, da cui sono partito per le successive modifiche.
+
+\vspace{0,3cm}
+
+Ecco il codice con la configurazione iniziale e la definizione della tabella certificati:
+
+\lstinputlisting[
+    language=Prisma,
+    caption={Definizione dello schema del database in Prisma},
+    label={lst:schema_prisma}
+]{code/database/schema.prisma}
+
+
+La keyword \texttt{model} è usata per definire le tabelle con le specifiche di ogni campo.
+In \texttt{datasource} definisco il provider, nel mio caso postgresql e l'url di connessione al database, che passo tramite variabile di ambiente.
+La keyword \texttt{generator} indica cosa deve essere generato al cambiamento dello schema, al lancio del comando \lstinline[language=Bash]{npx prisma generate}. Sono definiti 2 generatori: client per prisma-client e kysely (quest'ultimo discusso nella sezione \ref{Kysely}).  
+
+\vspace{0,3cm}
+
+\label{prisma_client}
+Inoltre, con lo schema Prisma è possibile generare un client da utilizzare nel codice, con la libreria \texttt{prisma-client}. Questo client, chiamato ORM (Object Relational Mapping), offre strumenti per interagire con il database in modo type-safe e astratto tramite un oggetto, eliminando la necessità di scrivere codice SQL manualmente. Tuttavia, offre anche la flessibilità di eseguire query SQL personalizzate se necessario.
+
+Tramite la libreria \texttt{prisma-client}, scaricata come dipendenza di sviluppo e non inclusa nella produzione, vengono eseguite principalmente operazioni di seeding attraverso il comando \lstinline[language=Bash]{npx prisma db seed}. Questo comando esegue il codice definito nel file `seed.ts` situato nella cartella `prisma`, utilizzando il client Prisma per interagire con il database. Prima di utilizzare il client Prisma, è necessario eseguire la generazione per sincronizzare l'ORM con lo schema definito. Di seguito è riportato un esempio di seeding che aggiunge un record nella tabella dei Certificati:
+
+\lstinputlisting[
+    language=TypeScript,
+    caption={Esempio di seeding},
+    label={lst:seeding}
+]{code/database/seed.ts}
+
+Da questo esempio possiamo vedere come viene astratta l'interazione con le tabelle del database attraverso l'ORM, chiamando direttamente la creazione sull'oggetto certificati.
+
+\vspace{0,3cm}
+
+Per mantenere l'evoluzione dello schema del database allineata con le modifiche apportate allo schema Prisma, eseguo una migrazione sul database locale utilizzando il comando \lstinline[language=Bash]{npx prisma migrate dev --name v1.x.x}. Questo comando genera un file di migrazione nella directory "migration" sotto "prisma", il quale contiene i comandi SQL necessari per adeguare lo schema del database alle modifiche apportate allo schema.prisma rispetto alla migrazione precedente. È importante sottolineare che questi file di migrazione rappresentano semplicemente una serie di istruzioni SQL che vengono eseguite per aggiornare lo schema del database.
+
+Una volta generato il file di migrazione, procedo con il tunneling verso il database remoto e sostituisco l'URL di connessione nell'ambiente con le credenziali aggiornate. Successivamente, applico la migrazione remota utilizzando il comando \lstinline[language=Bash]{npx prisma migrate deploy}. Quest'ultimo passaggio è fondamentale per sincronizzare le migrazioni con il database remoto, assicurandoci che tutte le modifiche apportate allo schema siano effettivamente applicate.
+
+Il processo che segue la creazione della migrazione locale può essere automatizzato all'interno di un pipeline, il quale esegue automaticamente il comando finale senza richiedere l'avvio manuale del tunnel o il recupero delle credenziali da parte dello sviluppatore. Tuttavia, questa problematica è discussa più approfonditamente nella sezione \ref{evoluzione_db_problematica}.

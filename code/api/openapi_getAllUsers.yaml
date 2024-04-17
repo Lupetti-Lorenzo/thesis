@@ -1,0 +1,68 @@
+openapi: 3.0.0
+
+paths:
+  /users:
+    get:
+      tags:
+        - Users
+        - HumanResources
+      summary: Returns all users.
+      operationId: getAllUsers
+      parameters:
+        - name: offset
+          in: query
+          description: The number of users to skip
+          required: false
+          schema:
+            type: integer
+            format: int64
+            default: 0
+        - name: limit
+          in: query
+          description: The number of users to return
+          required: false
+          schema:
+            type: integer
+            format: int64
+            default: 25
+        - name: sort
+          in: query
+          description: How to sort the result
+          example: "name:asc"
+          required: false
+          explode: false
+          style: form
+          schema:
+            type: array
+            items:
+              type: string
+            default: ["name:asc"]
+          # maxItems: 3
+        - name: filter
+          in: query
+          description: The array used to determine how to filter the result
+          example: "name:eq:Test"
+          required: false
+          explode: false
+          style: form
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        200:
+          description: Operation successful
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        400:
+          $ref: "#/components/responses/Err400InvalidPaginationParameters"
+        401:
+          $ref: "#/components/responses/Err401Unauthorized"
+        403:
+          $ref: "#/components/responses/Err403Forbidden"
+        500:
+          $ref: "#/components/responses/Err500InternalServerError"

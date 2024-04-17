@@ -1,0 +1,46 @@
+\section{Esposizione dei Servizi}
+\label{sec:esposizione_dei_servizi}
+Il sistema Skill Manager espone 2 servizi alla rete pubblica, sotto i domini:
+\begin{itemize}
+    \item \texttt{Web App:}     app.sm.taisoftware.solutions
+    \item \texttt{REST API:}		api.sm.taisoftware.solutions
+\end{itemize}
+
+Per rendere i servizi accessibili tramite questi nomi di dominio sono stati utilizzati i servizi AWS \texttt{Route53} e \texttt{Certificate Manager}.
+
+\vspace{0.3cm}
+
+\subsection{Certificate Manager}
+
+Nel processo di validazione e creazione dei certificati ACM, è necessario seguire una procedura di proof of ownership del dominio per cui viene richiesto il certificato. Questo processo coinvolge la creazione di record di tipo CNAME sul dominio stesso, come illustrato nella sezione \ref{route53_config}. Questi record consentono ai servizi di ACM di procedere con l'emissione e la validazione del certificato, che sarà firmato dalla certification authority di AWS.
+
+Questo processo è stato formalizzato nell'RFC 8555 \cite{rfc8555} nel 2019, al fine di standardizzare le procedure implementate dai fornitori di servizi cloud.
+Nell'introduzione, infatti, è descritto come le entità certificate authority (CA) possano utilizzare procedure basate su DNS per effettuare la proof of ownership dei domini.
+
+Una volta che il certificato ACM è stato prodotto e validato utilizzando la procedura illustrata, poiché le risorse ACM e Route53 sono deployate nello stesso account, il certificato è in grado di auto-rinnovarsi. Successivamente, sarà possibile associare questo certificato a CloudFront e API Gateway per consentire l'esposizione sicura dei servizi tramite HTTPS, utilizzando lo stesso certificato SSL/TLS.
+
+\vspace{0.3cm}
+\subsection{Route 53}
+\label{route53_config}
+
+Route 53 è stato configurato per permettere la gestione del dominio "sm.taisoftware.solutions". 
+
+Inizialmente, è stata creata una hosted zone dedicata per questo dominio all'interno di Route 53. Quando si crea una hosted zone in Route 53 per un determinato dominio, vengono automaticamente forniti quattro name server (NS) che agiscono come autorità per quel dominio. Questi name server sono quindi utilizzati per rispondere alle richieste DNS relative al dominio stesso. Di conseguenza, la zona pubblica Route53 rappresenta l'autorità per quel dominio.
+
+Per consentire al mio account di gestire il dominio di terzo livello "sm.taisoftware.solutions", è stata effettuata una delega di dominio dal dominio di secondo livello "taisoftware.solutions", che risiede in un account AWS aziendale, tramite la creazione di un record NS nella hosted zone di quel dominio. Questo record NS punta ai 4 name server della hosted zone sul mio account. (, aggiungere altro?)
+
+Questo procedimento è formalizzato nell'RFC 1035 \cite{rfc1035}, il quale stabilisce gli standard per il sistema di nome di dominio (DNS) e la sua implementazione. In particolare, la sezione 3.3.11 di tale documento definisce il formato del campo NS, specificando i dettagli riguardanti la gestione dei name server autoritativi per un dominio.
+
+\vspace{0,3cm}
+
+All'interno della hosted zone, sono stati definiti vari record DNS per indirizzare il traffico verso le risorse appropriate:
+
+\begin{itemize}
+    \item Record NS e SOA: Questi record definiscono i name server autorizzati per il dominio e forniscono informazioni sull'autorità del dominio, garantendo una corretta risoluzione dei nomi di dominio.
+    \item Record CNAME: È stato configurato un record CNAME per la verifica del certificato TLS emesso per "*.sm.taisoftware.solutions" tramite AWS Certificate Manager (ACM). Questo record permette la verifica della proprietà del dominio durante la procedura di ottenimento del certificato e abilita le connessioni HTTPS.
+    \item Record A e AAAA: Questi record consentono di indirizzare il traffico verso le relative risorse, sia tramite IPv4 (record A) che IPv6 (record AAAA).
+    \begin{itemize}
+        \item "api.sm.taisoftware.solutions" con target l'API Gateway.
+        \item "app.sm.taisoftware.solutions" con target la distribuzione CloudFront della Web App.
+    \end{itemize}
+\end{itemize}

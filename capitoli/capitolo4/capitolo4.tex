@@ -1,0 +1,51 @@
+\chapter{Implementazione}
+
+\section{Panoramica dell'Architettura}
+
+Il sistema Skill Manager è stato implementato con i servizi del Cloud Provider Amazon Web Services (AWS) e sostanzialmente è composto da:
+
+\begin{itemize}
+    \item Distribuzione CloudFront della Web App.
+    \item Rete privata all’interno del Cloud AWS  con una VPC.
+    \item API con Lambda e API Gateway.
+    \item Database relazionale PostgreSQL con RDS.
+    \item Gestione accessi con Cognito.
+    \item Gestione Certificati e DNS per esporre i servizi sotto il dominio aziendale.
+    \item Repository CodeCommit per il codice di Infrastruttura, BackEnd e Frontend.
+    \item Pipeline CodePipeline per automatizzare il rilascio della Web App e del BackEnd.
+\end{itemize}
+
+-- DETTAGLI ACCOUNT CHE MI HANNO DATO?
+
+Il sistema è dispiegato su due ambienti distinti, PROD e DEV. 
+-- dettagli e differenze qui? o nel devops 
+% fuorché per dettagli nella configurazione per le risorse di DEV, con politiche di cancellazione differenti e di capacità per ridurre i costi
+
+Nel diagramma successivo è rappresentata l'architettura dei servizi utilizzati, la quale è simile per tutti gli ambienti, ad eccezione delle pipeline e dei repository, i quali sono dettagliati nella sezione \ref{sec:devops}.
+
+\begin{figure}[ht]  
+    \centering
+    \makebox[\textwidth][c]{%
+        \includegraphics[width=1.1\linewidth]{immagini/infra/full_Infrastructure_services.png}%
+    }
+    \caption{Architettura del sistema}
+    \label{infra_full}
+\end{figure}
+
+\FloatBarrier
+
+
+
+
+\input{capitoli/capitolo4/configurazione_rete}
+\input{capitoli/capitolo4/frontend}
+\input{capitoli/capitolo4/database}
+\input{capitoli/capitolo4/api}
+\input{capitoli/capitolo4/cognito}
+\input{capitoli/capitolo4/esposizione_servizi}
+\input{capitoli/capitolo4/devops}
+
+
+
+
+

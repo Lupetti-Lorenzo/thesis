@@ -1,0 +1,100 @@
+\chapter{Possibili evoluzioni e Considerazioni}
+
+\section{Aggiornamenti in bulk}
+In questo momento, l'API offre funzionalità di creazione e aggiornamento di singole risorse, il che richiederebbe chiamate multiple per effettuare più modifiche su diversi oggetti. Come specificato nelle nostre esigenze, una delle funzionalità cruciali del sistema è la possibilità di effettuare tali operazioni in bulk.
+
+Per implementare questa funzionalità, è possibile utilizzare AWS S3 pre-signed URLs. Quando si chiama l'endpoint dell'API per richiedere un'operazione bulk, viene restituito un pre-signed URL che consente al client di caricare direttamente un file CSV su S3 dal browser. Successivamente, una funzione Lambda può essere attivata per leggere questo file e eseguire le operazioni di creazione e aggiornamento in modo simultaneo su tutte le risorse elencate nel file. Questo processo è asincrono, il che significa che il client rimarrà in attesa di una risposta tramite polling, consentendo una gestione efficace delle operazioni bulk senza sovraccaricare l'API con molteplici richieste singole.
+
+\section{Automazione dell'evoluzione dello schema del database}
+\label{evoluzione_db_problematica}
+Durante lo sviluppo dell'applicazione, ci siamo resi conto della necessità di migliorare l'efficienza e la coerenza del processo di evoluzione dello schema del database, attualmente eseguito manualmente. Tuttavia, l'automazione di questo approccio presenta una serie di sfide significative.
+
+Il problema principale riscontrato è che CloudFormation non è adatto per fare modifiche di questo tipo, in quanto esegue gli aggiornamenti in modo sequenziale, il che significa che se aggiorniamo prima il database, l'API potrebbe non essere sincronizzata e viceversa. Questo può portare a situazioni di inconsistenza e potenziali interruzioni del servizio durante l'esecuzione degli aggiornamenti. Non sono stati individuati strumenti in grado di effettuare questo processo all'interno di AWS.
+
+Le pipeline di distribuzione continue non si sono dimostrate adatte per questo scopo, in quanto non possono garantire un'integrazione graduale e senza conflitti degli aggiornamenti dello schema.
+
+Ecco un esempio di aggiornamento automatizzato, considerando l'evoluzione dello schema aggiungendo un campo required ad una tabella del database: 
+in questo scenario, potremmo inizialmente aggiungere un nuovo campo come non obbligatorio alla tabella. Successivamente, potremmo aggiornare l'API per gestire correttamente il nuovo campo come se fosse required e in una fase successiva, rendere il campo effettivamente obbligatorio e popolare i campi che nel mentre sono stati messi come null. Questo approccio garantirebbe un'integrazione graduale e senza conflitti.
+
+\section{Aggiungere test alle pipelines}
+\label{testing_pipeline}
+end to end testing al frontend
+unit test e integration test al backend
+
+\section{Protezione DDoS}
+Attualmente, sia l'API Gateway che la distribuzione CloudFront sono vulnerabili agli attacchi DDoS (Distributed Denial of Service), rappresentando una seria minaccia per il sistema, comportando potenziali disservizi e costi aggiuntivi legati al pagamento per richiesta.
+
+
+
+\subsection{Distribuzione CloudFront}
+Per affrontare questa vulnerabilità, è possibile implementare un limite di richieste alla distribuzione, consentendo un massimo di 1000 richieste ogni 5 minuti per utente. Questa misura, più che sufficiente per gli utenti legittimi, può essere attuata utilizzando AWS Web Application Firewall (WaF). 
+Per implementare questa soluzione, è necessario creare un ACL (Access Control List) al costo di \$5 al mese e una regola per bloccare ogni indirizzo IP che superi le 1000 richieste in 5 minuti, al costo di \$1 ciascuna. Inoltre, vi è un costo aggiuntivo di \$0.60 per ogni milione di richieste gestite.
+
+Questa strategia di limitazione del tasso di richieste può efficacemente mitigare il rischio di attacchi DDoS, fornendo una protezione aggiuntiva alla distribuzione CloudFront al costo di circa \$6 al mese: \$5 di ACL, \$1 di regola e il costo per le richieste trascurabile.
+
+\subsection{API Gateway}
+L'API Gateway offre funzionalità integrate come la restrizione IP, il rate limiting e il blocco a livello di certificato. Queste caratteristiche possono essere ulteriormente integrate con AWS WAF e Shield per garantire una protezione avanzata contro attacchi DDoS e altre minacce alla sicurezza.
+
+La soluzione proposta per mitigare gli attacchi DDoS è di limitare l'accesso all'API Gateway utilizzando restrizioni IP e certificati. Poiché gli utenti accederanno dall'interno della VPN aziendale, ogni utente avrà lo stesso indirizzo IP in uscita. Pertanto, è possibile impostare una restrizione IP per consentire solo le richieste provenienti dall'IP della VPN aziendale. Inoltre, si può applicare un rate limiting di 10.000 richieste ogni 5 minuti per garantire che il traffico sia gestito in modo equo e per prevenire il sovraccarico del servizio. Infine, si può configurare l'API Gateway per accettare solo le richieste provenienti dal certificato della web app, garantendo che solo le applicazioni autorizzate possano accedere alle risorse dell'API.
+
+Questa combinazione di restrizioni IP, rate limiting e blocco a livello di certificato fornisce una difesa efficace contro gli attacchi DDoS e assicura che solo utenti autorizzati possano accedere all'API Gateway.
+
+\subsection{AWS Shield}
+Se queste soluzioni non dovessero bastare, AWS offre un altro sevizio che garantisce la copertura da attacchi DDoS, AWS Shield. Questa soluzione racchiude regole WaF, monitoring e molto altro per combattere efficentemente questi attacchi. Questa alternativa ha un target enterprise, con il costo di \$3000 al mese, quindi l'implementazione non è considerabile nel progetto. 
+
+\section{Lambda Cold Start}
+\label{lambda_cold_start}
+Le Lambda function offrono un modello di esecuzione serverless scalabile e flessibile. Tuttavia, quando una funzione rimane inattiva per un periodo di tempo (tipicamente 45-60 minuti, ma non garantito da AWS), la funzione viene deallocata dal cloud e la successiva invocazione subisce una cold start.
+
+Durante una cold start AWS cerca un posto libero nel cloud dove eseguire la funzione, scarica il codice sorgente e lo esegue. La durata di questo processo può variare a seconda di quello che viene fatto nella Lambda. Inoltre, durante la cold start, la funzione consuma risorse extra, con un potenziale impatto sui costi.
+
+Nel nostro caso una chiamata alla API con cold start può richiedere fino a circa 10 secondi, in cui oltre all'inizializzazione della risorsa vengono recuperati i segreti da Secret Manager e inizializzata la connessione con il Database, causando un ritardo significativo e un'esperienza utente non ottimale. 
+
+Per mitigare questo problema, sono state individuate due alternative (considerando una Lambda con 1 vCPU e 128 MB di memoria):
+\begin{itemize}
+    \item Provisioned Concurrency - Mantenere un numero minimo di istanze Lambda in esecuzione, nel nostro caso una, anche in periodi di inattività. Il costo di idle è del 50\% del costo di esecuzione (circa \$0,43 al giorno per funzione).
+    
+    \item Warmup Handler - Invocare la funzione a intervalli regolari tramite AWS EventBridge. Il costo mensile per questo scenario sarebbe:
+    \[
+    \text{Costo mensile} = 0,3 \times 60 \times 24 \times 30 \times \text{Costo Lambda al secondo}
+    \]
+    Utilizzando un costo Lambda al secondo di \$0,0000002, il costo mensile sarebbe di circa \$0,86.
+\end{itemize}
+
+Dall'analisi dei costi emerge che nel nostro caso il Warmup Handler risulta meno dispendioso, poiché il costo viene quantificato al mese, mentre nell'altro caso al giorno. 
+Provisioned Concurrency rappresenta una soluzione ideale in contesti in cui la scalabilità e la latenza sono cruciali. Questo approccio garantisce che vi sia sempre almeno un'istanza Lambda attiva, eliminando completamente i tempi di cold start. Questa caratteristica rende Provisioned Concurrency particolarmente adatta per applicazioni in cui è essenziale garantire prestazioni elevate e costanti, anche in condizioni di carico variabile.
+
+\section{Finalizzazione del Codice per la Produzione}
+
+Il progetto è stato configurato per supportare molteplici account e ambienti attraverso file di configurazione appositi, come descritto nella sezione % \ref{}. 
+Al momento attuale, il sistema è stato dispiegato solo nell'ambiente di \texttt{sviluppo}, il quale utilizza un minimo di risorse e non include funzionalità critiche come backup e salvataggi.
+
+Per poter eseguire il deployment nell'ambiente di \texttt{produzione}, sebbene gran parte delle implementazioni siano già state eseguite in vista di questo passaggio, sono ancora necessari alcuni accorgimenti sia nel codice dell'infrastruttura che nell'API. Ad esempio, è necessario regolare la dimensione delle istanze, gestire la memoria in modo ottimale e definire politiche appropriate per la gestione dei dati. Inoltre, sono necessarie modifiche ai domini per eliminare il prefisso "dev-" e altri dettagli simili.
+
+In sintesi, è fondamentale eseguire una revisione completa di ogni parte del sistema al fine di assicurare che sia pronto per il deployment nell'ambiente di produzione.
+
+
+
+----- Disaster recovery
+- esplodono le az
+- cancellazione account
+
+---> RTO, RPO.
+
+--- > soluzione per backup: replicare cross account e cross region
+        backup account duplicate su un altro account. copiare gli snapshot db - su bucket e poi replico quello
+    predisponendo la pipeline anche sull'altro account e eventualmente lanciando un comando predisposto per ritirare su in base ai backup
+
+servizio h24 - doppia infrastruttura - active active/ active passive
+    db multi region - db di replica in sola lettura, che puo diventare principale se il principale va giù
+    problema: pipeline su una sola region
+    cognito 
+
+
+
+
+
+architettura generale - senza pipeline e repository e cloud formation
+    mettere riferimento a capitolo dev ops
+frontend e backend - senza pipeline
+infondo pipeline e 

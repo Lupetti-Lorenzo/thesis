@@ -1,0 +1,67 @@
+\chapter{Strumenti e linguaggi utilizzati}
+% \label{ch:background}
+In questo capitolo, si descrivono in breve gli strumenti utilizzati per lo sviluppo del progetto Skill Manager:
+\begin{itemize}
+    \item Cloud Provider (sezione \ref{CloudProvider})
+
+    \item TypeScript (sezione \ref{typescript}),
+    
+    \item API
+    \item REST
+    \item OPENAPI
+    \item Single Page Application
+    \item Content Delivery Network
+    \item S3 Storage
+    \item PostgresSQL
+    \item Prisma + Kysely
+    \item Bastion Host - ec2, AWS
+    \item IaC - cdk
+    \item Serverless - lambda
+    \item OAuth2.0
+    \item Pipeline
+    \item Repository
+    \item Virtual Private Cloud
+    \item DNS
+    \item Certificates
+\end{itemize}
+\section{Cloud Provider}
+\label{CloudProvider}
+
+\section{TypeScript}
+\label{typescript}
+
+
+\section{Certificate Manager}
+
+Certificate Manager
+AWS Certificate Manager (ACM) è un servizio gestito che semplifica notevolmente il processo di generazione, gestione e distribuzione dei certificati SSL/TLS. Alcune delle funzionalità di ACM:
+
+\begin{itemize}
+    \item \texttt{Gestione semplificata dei certificati:} ACM semplifica notevolmente il processo di generazione, gestione e distribuzione dei certificati SSL/TLS.
+    \item \texttt{Certificati gratuiti:} ACM offre certificati SSL/TLS gratuiti supportati da Amazon Trust Services.
+    \item \texttt{Integrazione nativa con altri servizi AWS:} ACM è completamente integrato con altri servizi AWS come Elastic Load Balancer (ELB), CloudFront, API Gateway e altri ancora.
+    \item \texttt{Rinnovo automatico dei certificati:} ACM gestisce automaticamente il rinnovo dei certificati prima della loro scadenza.
+\end{itemize}
+
+
+\section{Route53}
+
+Amazon Route 53 è il servizio di gestione del DNS (Domain Name System) fornito da Amazon Web Services (AWS). Route 53 offre uno strumento per la gestione dei nomi di dominio e la distribuzione del traffico Internet. Grazie alla sua scalabilità, affidabilità e ampie funzionalità, Route 53 è una soluzione ideale per la gestione dei siti web, la risoluzione DNS rapida ed efficiente, il bilanciamento del carico, il monitoraggio della disponibilità e altro ancora. Alcune delle funzionalità di Route53:
+\begin{itemize}
+    \item \texttt{Gestione DNS Scalabile:} Route 53 offre una gestione del DNS scalabile e affidabile, consentendo di gestire milioni di richieste al secondo con bassa latenza.
+    \item \texttt{Gestione delle Zone Ospitate:}Permette di creare e gestire zone ospitate DNS per i tuoi domini, inclusa la registrazione dei domini.
+    \item \texttt{Monitoraggio della Disponibilità:} Fornisce funzionalità di monitoraggio della disponibilità dei siti web e delle applicazioni, consentendo di rilevare il problema e ridirigere il traffico al servizio funzionante dispiegato a zone di disponibilità o regioni alternative.
+    \item \texttt{Integrazione con altri servizi AWS:} È completamente integrato con altri servizi AWS, come Elastic Load Balancer (ELB), CloudFront, S3, e altri ancora, semplificando la gestione del traffico e dei nomi di dominio per le risorse all’interno dell’infrastruttura AWS.
+
+\end{itemize}
+
+
+\section{Cloud Front}
+
+Vantaggi CDN:
+\begin{itemize}
+    \item \texttt{Bassa Latenza:} Quando un utente richiede la Web App, CloudFront intercetta la richiesta e fornisce i file statici dalla sua rete distribuita di server edge, situati in punti strategici in tutto il mondo, facendo rispondere quello più vicino disponibile. I server edge manterranno una copia in cache dei contenuti e alle prossime richieste non dovranno ricontattare il server centrale. Dopo una invalidazione, un segnale mandato alla rete di server edge quando i contenuti sul bucket sono cambiati, richiederanno i contenuti aggiornati dal server.
+    \item \texttt{Distribuzione Globale:} I server di edge distribuiti in tutto il mondo migliorano la sicurezza, distribuendo il traffico in modo più uniforme e mitigando gli attacchi di tipo DDoS.
+    \item \texttt{Scalabilità:} CloudFront è in grado di gestire automaticamente il traffico, scalando dinamicamente risorse e distribuendo le richieste agli edge locations in base alla disponibilità.
+    \item \texttt{SEO:} La velocità di caricamento è un importante fattore di classificazione per i motori di ricerca, contribuendo così a una migliore visibilità e ranking nei risultati di ricerca.
+\end{itemize}

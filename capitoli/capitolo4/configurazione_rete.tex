@@ -1,0 +1,15 @@
+\section{Configurazione di Rete}
+
+La rete privata è implementata attraverso una \texttt{VPC} (Virtual Private Cloud) all’interno del cloud AWS, segmentata in tre Subnet:
+
+\begin{itemize}
+    \item \texttt{Privata Isolata}: per ospitare l’istanza del database.
+    \item \texttt{Privata con Egress}: per i servizi che hanno bisogno di accesso a internet, come le Lambda e il Bastion Host.
+    \item \texttt{Pubblica}: contiene solo il NAT Gateway per permettere alle risorse nella Subnet Privata con Egress di raggiungere internet senza esporre gli ip pubblici.
+\end{itemize}
+
+Per garantire \texttt{disponibilità e resilienza}, ogni categoria di subnet è replicata per le 2 zone di disponibilità della regione AWS Francoforte (eu-central-1):
+\begin{itemize}
+    \item \texttt{Zona A}: eu-central-1a
+    \item \texttt{Zona B}: eu-central-1b
+\end{itemize}

@@ -1,0 +1,194 @@
+\section{API}
+
+L’ API è il servizio con cui il Front End comunica per interagire con il Backend, fornendo operazioni di alto livello per le funzioni svolte dal sito web. Adottando un approccio spec-first nella progettazione dell'API, come descritto nella Sezione \ref{openapi_spec}, sono stato in grado di implementare rapidamente gli endpoints, avendo già sviluppato una versione significativa della specifica OpenApi. Questo approccio mi ha fornito tutte le informazioni necessarie in anticipo, riducendo al minimo la necessità di consultare il collega responsabile del Frontend per chiarire eventuali dubbi durante l'implementazione.
+
+Il servizio è distribuito con AWS \texttt{Lambda}, quindi secondo il modello serverless, esposto utilizzando \texttt{APIGateway}.
+
+\vspace{0,3cm}
+
+La REST API è implementata con una singola Lambda, con configurazione: 
+\begin{itemize}
+    \item \texttt{runtime} NodeJS-20.
+    \item \texttt{timeout} 5 secondi.
+    \item \texttt{subnet} private with egress per accedere a SecretsManager, SES, Cognito e altri servizi fuori dalla VPC.
+    \item \texttt{memoria} 128MB di RAM.
+\end{itemize}
+
+L'API Gateway è configurato per inoltrare ogni richiesta, sotto forma di eventi, alla Lambda REST API e per restituire la risposta ritornata da quest'ultima. 
+Per consentire l'accesso al servizio da parte di client esterni, che utilizzano Browser Web per utilizzare il sistema, è stato configurato il CORS \cite{rfc6454}, in base all'ambiente:
+\begin{itemize}
+    \item \texttt{PROD:} l'accesso in produzione è limitato all'URL del frontend, garantendo la sicurezza del servizio.
+    \item \texttt{DEV: } in fase di sviluppo, l'accesso è aperto a tutti per facilitare i test e la messa a punto.
+\end{itemize}
+
+\vspace{0,3cm}
+
+È stato associato un nome di dominio e un certificato TLS per rendere il servizio accessibile tramite HTTPS attraverso il nome di dominio "api.taisoftware.solutions" (approfondimenti nella sezione \ref{sec:esposizione_dei_servizi}).
+
+
+\subsubsection{Vantaggi AWS Lambda + API GW}
+
+\begin{itemize}
+    \item \texttt{Scalabilità:} AWS Lambda consente di gestire automaticamente la scalabilità delle funzioni in risposta alla domanda. Questo significa che le risorse vengono allocate solo quando necessario, ottimizzando l'utilizzo e riducendo i costi operativi.
+    \item \texttt{Gestione semplificata:} La gestione delle risorse, la manutenzione e l'aggiornamento dell'infrastruttura sono affidati a AWS, eliminando la manutenzione e configurazione del server. Ciò consente al team di concentrarsi maggiormente sullo sviluppo delle funzionalità dell'applicazione.
+    \item \texttt{Integrazione:} l’integrazione diretta tra AWS Lambda e AWS API Gateway semplifica l’esposizione dell’API e la gestione delle richieste HTTP. API Gateway è configurato per gestire autenticazione, autorizzazione e limitazione del traffico, contribuendo alla sicurezza e stabilità del sistema.
+\end{itemize}
+
+\subsubsection{Svantaggi della soluzione}
+\begin{itemize}
+    \item \texttt{Cold Starts:} Se nessuna Lambda è attiva, il tempo necessario per l'avvio di una nuova istanza di Lambda (chiamato "cold start") può introdurre una latenza iniziale nelle risposte alle richieste.
+    \item \texttt{Limiti:} AWS Lambda ha un limite massimo di tempo di esecuzione e ogni istanza ha memoria e CPU fissata.
+\end{itemize}
+
+L’API non dovrà fare operazioni di lunga durata e non necessita di tanta memoria, quindi lo svantaggio riguardo ai limiti è trascurabile. Riguardo alle cold starts, se l’API non viene chiamata per un determinato periodo, l’utente che chiamerà il servizio subirà una cold start di qualche secondo, riducendo l’esperienza utente. Se diventasse un problema, si potrebbe valutare di tenere sempre una Lambda “warm” per eliminare le cold start, ma gravando sui costi. Le possibili soluzioni a questa problematica sono discusse nella sezione \ref{lambda_cold_start}.
+
+
+\subsection{Implementazione}
+Per creare una REST API su Lambda in TypeScript, esistono diverse opzioni di framework, come \href{https://www.serverless.com/framework/docs-providers-aws-events-apigateway}{Serverless Framework}. Tuttavia, in azienda mi è stato presentato un mini-framework sviluppato internamente da un membro del team, chiamato \texttt{Micro}. Questo framework si è dimostrato la scelta ideale poiché segue il paradigma "spec first": partendo da una specifica OpenAPI, il framework fornisce uno script di generazione automatica dell'impalcatura (scaffolding) del codice. 
+Nella fase di scaffolding, vengono generati:
+\begin{itemize}
+    \item \texttt{classi} relative ai modelli defiti
+    \item \texttt{file} per ogni percorso con firma della funzione e import necessari
+    \item \texttt{schema percorsi} in JSON con i dettagli di ogni percorso per la validazione
+\end{itemize}
+
+
+Inoltre, l'attributo operationId, inserito in ogni definizione di percorso, ha garantito un nome univoco per ciascuno di essi, necessario per il naming dei file automaticamente generati.
+
+Micro è configurato per abilitare la \texttt{dependency injection}, un pattern per il quale posso definire servizi, richiedibili dagli altri semplicemente specificandoli nel costruttore. Il motore della dependency injection si occupa di fornire i servizi e di gestire le istanze, ad esempio permettendo di definire un servizio come singleton e gestendone l'utilizzo tra i vari richiedenti. Questo pattern è stato implementato con la libreria \href{https://inversify.io/}{Inversify}, anche se non entreremo nei dettagli. È fondamentale sottolineare questo aspetto, poiché presenteremo in seguito i principali servizi che collaborano per rispondere a una chiamata.
+
+Infine, è importante menzionare che il framework gestisce anche la \texttt{validazione delle richieste}. Ogni richiesta viene confrontata con lo schema dei percorsi, verificando i tipi e i campi richiesti. Questa funzionalità è stata sviluppata durante il tirocinio e ho contribuito al debugging delle varie parti, assicurandomi che il processo di validazione fosse accurato e affidabile. Grazie a questa funzionalità, sono stato in grado di eliminare la maggior parte dei controlli durante lo sviluppo dei percorsi, poiché potevo assumere che i dati fossero corretti.
+
+-- aggiungere cdk compatibility
+
+\subsubsection{Kysely - query builder}
+\label{Kysely}
+
+\vspace{0,3cm}
+
+La decisione di escludere Prisma Client (sezione \ref{prisma_client}) dalla produzione è stata motivata dalla sua eccessiva pesantezza e dalle dimensioni del runtime che avvia in background. Questo comporta un aumento sia della memoria RAM utilizzata che delle dimensioni del bundle di esecuzione, raddoppiando il volume dei moduli da 100 MB a 200 MB. 
+
+Questi fattori diventano problematici soprattutto in ambienti serverless, poiché aumentano il tempo di caricamento iniziale e il consumo di memoria di base. Inoltre, la configurazione di Prisma Client con AWS Lambda, come descritto nella \href{https://www.prisma.io/docs/orm/prisma-client/deployment/serverless/deploy-to-aws-lambda}{documentazione di Prisma}, consiglia l'utilizzo di framework come \texttt{SST} o \texttt{SAM}, che non sono stati scelti per questo progetto. Di conseguenza, avrei dovuto affrontare una configurazione più complessa e laboriosa.
+
+\vspace{0,3cm}
+
+In alternativa, per la creazione di query dall'API,ho scelto di utilizzare la libreria \texttt{Kysely}, un query builder che offre vantaggi simili a Prisma Client ma con una minore complessità e leggerezza. A differenza di Prisma, Kysely non richiede un runtime, ma trasforma direttamente il codice in query SQL e si occupa della formattazione e dell'esecuzione di prepared statements per prevenire le injection SQL. 
+
+Per utilizzare Kysely, è necessario definire un'interfaccia contenente lo schema del database. In questo contesto, ho utilizzato la libreria \texttt{prisma-kysely}, che permette di generare automaticamente l'interfaccia a partire dalla definizione dello schema in Prisma (configurazione del generatore nel listing \ref{lst:schema_prisma}). Questo approccio consente di definire lo schema una sola volta in Prisma e di generare automaticamente l'interfaccia necessaria per Kysely, semplificando così il processo di sviluppo e manutenzione del codice.
+
+
+\subsubsection{Autorizzazione a grana fine}
+\label{context_service}
+Nel context dell'evento, come descritto nella sezione \ref{authorizer}, vengono trasmessi i gruppi di appartenenza dell'utente e l'ID dell'utente nel database. Queste informazioni sono essenziali per eseguire autorizzazioni specifiche basate sull'utente e sull'operazione richiesta. Ad esempio, l'ID dell'utente può essere considerato come l'identificatore del chiamante e può essere utilizzato per limitare l'accesso solo alle risorse associate a quell'utente.
+
+Per semplificare il processo di autorizzazione, ho sviluppato un servizio dedicato, \texttt{context service}: 
+
+\lstinputlisting[
+    language=TypeScript,
+    caption={Servizio per gestire l'autorizzazione degli utenti},
+    label={lst:auth_service}
+]{code/api/context_service.ts}
+
+Non sono stati inclusi dettagli implementativi relativi al testing locale, come la sostituzione dei gruppi e dell'ID estratti dal contesto con valori costanti, per mantenere la brevità del codice. Gli import sono stati omessi dall'inizio del file per lo stesso motivo.
+
+\label{context_service_funzioni}
+Le funzioni \texttt{getGroups} e \texttt{getCallerUserId} sono incaricate di estrarre i dettagli rilevanti dal contesto dell'evento. 
+
+Successivamente, la funzione \texttt{authorizeUserOrThrow} viene utilizzata per gestire l'autenticazione dell'utente in base ai ruoli richiesti in un percorso specifico e per restituire un errore 403 Forbidden in caso di autorizzazione negata. Questa funzione richiede come parametri i ruoli accettati per il percorso e, opzionalmente, l' ID da verificare se l'utente appartiene a un determinato gruppo. 
+
+È importante notare che la funzione ritorna il gruppo a cui l'utente appartiene, consentendo controlli successivi se necessario. Tuttavia, è fondamentale tenere presente che questo servizio presenta alcune limitazioni. Ad esempio, è essenziale che i gruppi vengano passati in ordine di autorità per 2 principali motivi:
+\begin{itemize}
+    \item La funzione restituirà il primo gruppo trovato, quindi è importante che il ruolo con maggiori autorizzazioni sia posizionato all'inizio della lista per garantire i privilegi appropriati.
+    \item È necessario effettuare controlli sull'ID dell'utente solo se non possiede un ruolo con privilegi maggiori.
+\end{itemize}
+
+Infatti, il ruolo admin è posizionato di default all'inizio della lista dei gruppi.
+
+Per un esempio pratico di utilizzo di questo servizio, si rimanda alla sezione \ref{esempio-endpoint}.
+
+\subsubsection{Accesso al Database}
+\label{db_service}
+Per facilitare l'accesso al database, ho sviluppato un servizio dedicato alla gestione della connessione, il quale si adatta sia all'ambiente locale che a quello di produzione. In ambiente locale, vengono utilizzate credenziali "hard coded" relative a un'istanza locale, mentre in produzione le credenziali del database vengono recuperate tramite AWS Secrets Manager. Le credenziali vengono ottenute all'inizializzazione della Lambda e tenute in memoria per non effettuare una chiamata a Secrets Manager ad ogni richiesta.
+
+Il servizio è configurato come un singleton, il che significa che mantiene una singola istanza della connessione attiva e la riutilizza per ogni chiamata al database, anziché aprirne una nuova ogni volta.
+
+Questo servizio offre due modalità di accesso al database:
+
+\begin{itemize}
+    \item \texttt{Pool:} Consente di comunicare tramite una connessione diretta con pg, adatto per operazioni di basso livello e semplici query SQL.
+    \item \texttt{Kysely:} Fornisce un'istanza di Kysely, inizializzata con la connessione a pg, ottimizzata per eseguire query in modo efficiente e sfruttando i vantaggi del query builder.
+\end{itemize}
+
+In questo modo, gli sviluppatori hanno la flessibilità di scegliere lo strumento più adatto in base alle specifiche esigenze di ogni situazione.
+
+\lstinputlisting[
+    language=TypeScript,
+    caption={Servizio per accedere al database tramite pg e kysely},
+    label={lst:db_service}
+]{code/api/db_service.ts}
+
+\subsubsection{Accesso ai dati}
+\label{dao}
+Per astrarre l'accesso al database e la creazione delle query, ho sviluppato un servizio DAO per ogni risorsa del database. Questo approccio consente di raggruppare la logica e i controlli necessari, riducendo al minimo la duplicazione del codice. Ogni DAO implementa le operazioni CRUD standard, ovvero create, read (getAll e getOne), update e delete, oltre a eventuali funzionalità aggiuntive in base alle esigenze del sistema.
+
+L'implementazione di questi servizi è diventato necessario poiché ho deciso di non utilizzare Prisma Client (sez. \ref{prisma_client}), che avrebbe fornito un'interfaccia simile per l'accesso alle risorse del database.
+
+Nei servizi DAO, la connessione al database è gestita tramite il servizio database service (sezione \ref{db_service}), mentre la costruzione delle query avviene mediante l'utilizzo della libreria Kysely (sezione \ref{Kysely}). 
+
+\vspace{0,3cm}
+
+Di seguito è riportato un esempio del DAO per l'operazione getAll sulla risorsa Utenti, analogo agli altri DAO per le diverse risorse, che utilizza l'istanza di Kysely fornita dal database service per costruire la query. 
+
+\lstinputlisting[
+    language=TypeScript,
+    caption={Esempio di DAO per gli utenti},
+    label={lst:dao_utenti}
+]{code/api/getAllUsersDAO.ts}
+
+Questa funzione,  essendo una getAll, implementa la paginazione, il filtraggio e l'ordinamento, come anticipato nella sezione \ref{Paginazione}.
+La trasformazione di questi filtri e dell'ordinamento per kysely viene gestita da un servizio chiamato \texttt{QueryFormatter}, del quale non entreremo nei dettagli.
+
+
+\subsection{Esempio di endpoint}
+\label{esempio-endpoint}
+
+Sotto è presentato il codice per gestire la richiesta GET /users, utilizzando il servizio di autorizzazione (sezione \ref{context_service}) e il dao della risorsa utenti (sezione \ref{dao}). Questa implementazione illustra come l'uso del context service e del DAO semplifichi la scrittura dei vari endpoint dell'API, riducendo al minimo la duplicazione del codice e astraendo i vari procedimenti intermedi.
+
+\lstinputlisting[
+    language=TypeScript,
+    caption={Esempio di Endpoint handler per GET /users},
+    label={lst:getUsers_handler}
+]{code/api/getAllUsersHandler.ts}
+
+Nella definizione OpenAPI dell'endpoint (riportata nel listing \ref{lst:openapi_getAll}), sono presenti due tags: Users e HumanResources. Come discusso in precedenza nella sezione \ref{Tags}, i tags aggiuntivi rispetto a quello della risorsa definiscono chi può accedervi.. L'autorizzazione del percorso avviene tramite il context service utilizzando la funzione authorizeUserOrThrow, descritta in dettaglio nella sezione \ref{context_service_funzioni}, passando quindi in questo caso il gruppo HR.
+
+Dopo l'autorizzazione, viene utilizzata un'istanza del DAO utenti per chiamare la funzione getAll (definita nel listing \ref{lst:dao_utenti}), passando i parametri di paginazione. 
+
+Infine, la risposta contenente gli utenti e il codice di successo viene restituita all'API Gateway per inoltrarla al chiamante.
+
+% \subsection{Notifiche}
+
+\subsection{Testing}
+\label{testing_api}
+Durante lo sviluppo servizio, ho adottato due approcci distinti per testare il sistema in diversi contesti: il testing locale e il testing del servizio dispiegato:
+
+\begin{itemize}
+    \item \texttt{Testing Locale:} Per testare ogni endpoint, ho sviluppato dei test utilizzando la libreria \href{https://jestjs.io/docs/getting-started}{\texttt{Jest}}, una delle più popolari per il testing delle API, nota per la sua flessibilità e le numerose funzionalità offerte. I test sono organizzati per risorsa e includono gli endpoint CRUD principali, nonché qualsiasi funzionalità aggiuntiva implementata.
+    Di seguito è presentato un esempio di test in TypeScript utilizzando Jest per verificare il funzionamento dell'endpoint GET /users:
+
+    \lstinputlisting[
+        language=TypeScript,
+        caption={Esempio di testing in Jest per GET /users},
+        label={lst:test_getAllUsers}
+    ]{code/api/testing.ts}
+
+    Le righe 2 e 3 riguardano la generazione di un evento emulato simile a quello che si verificherebbe con l'API Gateway in produzione. Successivamente, dalle righe 4 alla 9, viene eseguita la chiamata alla funzione responsabile del percorso, mentre dalle righe 10 alla 13 vengono effettuati dei controlli per valutare il successo del risultato ottenuto.
+
+    \item \texttt{Testing del Servizio:} Per effettuare il testing della REST API, ho impiegato \href{https://www.postman.com/}{\texttt{Postman}}, un'applicazione desktop dotata di un'interfaccia che consente di creare e organizzare chiamate HTTP. Inoltre, ho sfruttato la funzionalità di autorizzazione nella sezione Oauth 2.0, la quale semplifica il processo di recupero e refresh dell'access token, inserendolo automaticamente nelle richieste. Questo strumento si è rivelato estremamente utile nel rilevare rapidamente eventuali bug durante lo sviluppo, specialmente per le componenti che non potevano essere testate in locale, come l'authorization handler e il preTokenGeneration handler, le quali richiedono un ambiente specifico non replicabile in locale.
+\end{itemize}
+
+
+Nella sezione \ref{testing_pipeline}, si illustra come i test scritti in JEST possano fungere da unit test nella pipeline di rilascio.
+
+
+

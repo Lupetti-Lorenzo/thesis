@@ -1,0 +1,149 @@
+\documentclass[12pt]{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc} % Font encoding, T1 = it
+\usepackage[english,italian]{babel} % Lingua principale italiano, con parti in inglese
+\usepackage{graphicx} % Required for inserting images
+\graphicspath{{immagini/}}
+\usepackage[a4paper,top=3cm,bottom=3cm,left=3cm,right=3cm]{geometry} %impaginazione e margini documento
+\usepackage{xcolor} % colori rgb per sfondo, bordi...
+% Define colors
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\usepackage{caption} % captions per figure e tabelle
+\usepackage[section]{placeins}
+\usepackage{amsmath} % Formule matematiche
+\usepackage{csquotes} % quotes
+% \usepackage[bottom]{footmisc} % mette footnotes in fondo alla pagina, default è dopo il testo
+% \usepackage{endnotes}
+
+
+\usepackage{listings} % formattare il codice
+
+% \DeclareCaptionFont{white}{\color{white}}
+% \DeclareCaptionFormat{listing}{
+%   \colorbox{gray}{\parbox{\textwidth}{\hspace{15pt}#1#2#3}}
+% }
+
+\lstdefinelanguage{Prisma}{
+    keywords={model, datasource, generator}
+    sensitive=true,
+    morecomment=[l]{//},
+    morecomment=[s]{/*}{*/},
+    morestring=[b]",
+}
+
+% Define bash language
+\lstdefinelanguage{Bash}{
+  keywords={alias, bg, bind, break, builtin, case, cd, command, compgen, complete, continue, declare, dirs, disown, echo, enable, eval, exec, exit, export, false, fc, fg, getopts, hash, help, history, if, jobs, kill, let, local, logout, popd, printf, pushd, pwd, read, readonly, return, set, shift, shopt, source, suspend, test, times, trap, true, type, typeset, ulimit, umask, unalias, unset, wait, while},
+  morekeywords={},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]',
+  morestring=[b]"
+}
+
+
+
+\lstdefinelanguage{TypeScript}{
+    keywords={typeof, new, true, false, catch, function, return, null, catch,
+        switch, var, if, in, while, do, else, case, break, instanceof, export,
+        default, finally, for, this, class, extends, implements, constructor,
+        get, set, declare, module, namespace, enum, type, public, private,
+        protected, abstract, as, any, from, keyof, export, async, await},
+    keywordstyle=\color{blue}\bfseries,
+    ndkeywords={import, throw, extends, implements, interface, with, yield, this},
+    ndkeywordstyle=\color{darkgray}\bfseries,
+    identifierstyle=\color{black},
+    sensitive=true,
+    comment=[l]{//},
+    morecomment=[s]{/*}{*/},
+    commentstyle=\color{orange}\ttfamily,
+    stringstyle=\color{red}\ttfamily,
+    morestring=[b]',
+    morestring=[b]"
+}
+
+\lstdefinelanguage{yaml-openapi}{
+  keywords={openapi, info, servers, paths, components, security, tags, externalDocs, securityDefinitions, parameters, responses, requestBody, callbacks, examples, headers, content, schemas, securitySchemes, OAuth2, APIKey, name, in, description, required, type, format, items, properties, example, default, allOf, oneOf, anyOf, not, enum, format, pattern, title, version, termsOfService, contact, license, url, email, summary, externalDocs, operationId, deprecated, tags, externalDocs, parameters, requestBodies, responses, callbacks, security, servers, deprecated, \$ref},
+  sensitive=true,
+  comment=[l]{\#},
+  morestring=[b]',
+  morestring=[b]",
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+}
+
+\lstdefinelanguage{SQL}{
+  keywords={SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY, INSERT INTO, INSERT, VALUES, UPDATE, SET, DELETE, CREATE, ALTER, DROP, TABLE, VIEW, INDEX, UNIQUE, PRIMARY, FOREIGN, KEY, REFERENCES, CONSTRAINT, WITH, GRANT},
+  keywordstyle=\color{blue}\bfseries,
+  sensitive=true,
+  morecomment=[l]{--},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]',
+  morestring=[b]",
+  commentstyle=\color{green},
+  stringstyle=\color{red},
+  basicstyle=\ttfamily,
+  tabsize=2,
+  showspaces=false,
+  showstringspaces=false
+}
+
+\lstdefinestyle{codestyle}{
+    % backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2,
+} \lstset{style=codeStyle}
+
+
+\usepackage{hyperref}  % Per inserire gli hyperlinks tra i vari elementi del testo 
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={Overleaf Example},
+    pdfpagemode=FullScreen,
+}
+
+% Aggiungi bibliografia
+\usepackage[backend=biber]{biblatex}
+\addbibresource{bibliografia.bib} 
+\definecolor{mybackground}{rgb}{0.95,0.95,0.95} % Grigio chiaro come colore di sfondo
+\pagestyle{headings} % Capitoli a inizio pagina
+
+\begin{document}
+
+\input{frontespizio}
+
+\tableofcontents
+
+\input{capitoli/capitolo1}
+\input{capitoli/capitolo2}
+\input{capitoli/capitolo3}
+\input{capitoli/capitolo4/capitolo4}
+\input{capitoli/capitolo5}
+
+\printbibliography
+
+\include{capitoli/appendice_codice}
+
+
+\end{document}

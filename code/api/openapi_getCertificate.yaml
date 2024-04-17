@@ -1,0 +1,35 @@
+openapi: 3.0.0
+
+paths:
+    /certificates/{certificate_id}:
+        get:
+          tags:
+            - Certificates
+            - DataManager
+            - SkillsUser
+          summary: Get certificate by ID
+          operationId: getCertificateById
+          parameters:
+            - name: certificate_id
+              in: path
+              description: The id of the certificate that needs to be fetched.
+              required: true
+              schema:
+                type: string
+          responses:
+            200:
+              description: Operation successful
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/Certificate"
+            400:
+              description: ID not valid
+            404:
+              description: Certificate not found
+            401:
+              $ref: "#/components/responses/Err401Unauthorized"
+            403:
+              $ref: "#/components/responses/Err403Forbidden"
+            500:
+              $ref: "#/components/responses/Err500InternalServerError"

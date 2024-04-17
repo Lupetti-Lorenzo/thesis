@@ -1,0 +1,27 @@
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+generator kysely {
+    provider = "prisma-kysely"
+    output   = "../src/db"
+    fileName = "kysely_types.ts"
+}
+
+model certificates {
+    id                   String                 @id @db.Uuid
+    creator_id           String?                @db.Uuid
+    name                 String                 @db.VarChar(255)
+    company              String                 @db.VarChar(255)
+    level                Int
+    validity             Int
+    creation_date        DateTime               @default(now()) @db.Timestamptz(6)
+    description          String?                @db.VarChar(255)
+    users                users?                 @relation(fields: [creator_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_certificate_creator")
+    certificatesacquired certificatesacquired[]
+}

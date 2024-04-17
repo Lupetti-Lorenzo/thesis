@@ -1,0 +1,9 @@
+CREATE USER apiuser
+    WITH ENCRYPTED PASSWORD '???';
+GRANT USAGE ON SCHEMA public TO apiuser;
+GRANT ALL PRIVILEGES ON DATABASE skillmanager TO apiuser;
+GRANT
+    SELECT,
+    INSERT,
+    UPDATE,
+    DELETE ON ALL TABLES IN SCHEMA public TO apiuser;

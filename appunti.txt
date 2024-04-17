@@ -1,0 +1,168 @@
+Capitolo 1 - Introduzione
+    contesto: azienda - cosa fanno 
+    problema: cosa mi hanno chiesto e perchè
+    lavoro in team - separazione dei compiti
+
+Capitolo 2 strumenti e linguaggi utilizzati
+WebApp - fullstack - in realtà quello che ho fatto può essere utilizzato da tutti i dispositivi - webapp, mobile app, desktop, dispositivi generici con accesso ad internet
+Cloud Provider - AWS
+	scelte intraprese al fine di arrivare all'obiettivo
+		diversi aspetti:
+			strumenti e servizi per varie aree 
+	scelte in base a costi, manutenibilità
+	servizi considerati
+TypeScript
+API
+    modo migliore per documentare e conventions
+        defacto standard: openapi
+        naming articolo
+    REST API
+    OPENAPI - spec first/code first
+    Serverless - lambda
+    api gateway
+	autenticazione: 
+    	OAuth2.0 e openidconnect
+    	Auth provider (Cognito) + federated with google
+FRONTEND
+    Single Page Application
+    Content Delivery Network
+    S3 Storage
+DATABASE
+    relazionale vs dynamo
+    RDS - PostgresSQL
+	 - > Virtual Private Cloud
+    Bash for scripting
+    Prisma (migrations) + Kysely (query builder)
+    Bastion Host - ec2
+DEVOPS
+    cloud formation
+    IaC - cdk
+    Pipeline
+    Repository
+Networking
+    DNS - route 53
+    Certificati TLS/SSL
+
+Capitolo 3 - Progetto logico
+	specifiche funzionali - ruoli  + casi d'uso
+	specifiche non funzionali
+	mokup
+
+Capitolo 4 - Implementazione
+
+Panoramica dell'architettura
+    AWS cloud provider - dettagli del mio account?
+    riassunto delle varie parti del sistema e le funzionalità ad alto livello
+    diagramma intero
+    enviroments
+    repositories - iac, api, spa
+
+DEVOPS - prima o dopo gli altri? codice degli staks qui oppure negli altri capitoli - prima:introdurre devops e cdk per poi mettere nel deployment il codice dello stack
+    CDK
+        struttura del progetto - staks e stages
+        modular deployment via account-config
+    SSO, aws-cli, aws-cdk deployment
+    PIPELINES
+        GItFlow
+        diagrammi delle 2 pipelines 
+    PLATFORM - backend
+
+Configurazione di rete
+    VPC - subnets
+
+DATABASE
+    Modello dei dati
+        Schema concettuale
+        Schema logico
+    RDS
+        PostgresSQL
+        secrets
+    bastion-host
+        config
+        connect & tunnel bash scripts
+    migrazioni
+        evoluzione dello schema
+        prisma - codice schema
+        sequenza di comandi per aggiornare lo schema
+        altri comandi utili
+
+Gestione utenti
+    cognito
+        post-confirmation-handler per creare utente nel database, dare gruppi default e attributo id
+    Autenticazione
+        pre-token-generation-handler code -  mette gruppi e id utente nel payload del token
+    authorization
+        Authorizer code - valida token e mette nel context della risposta per callerid e groups
+
+API
+    panoramica files progetto - services, handlers, api-handlers, dao, db, tests, openapi, 
+    openapi file
+    mikro framework
+        api spec first for lambda
+        autogen
+        dependency injection
+        request validator - analizza la richiesta contro lo schema generato
+    platform
+        iac resources
+        lambda handler example
+    database access
+        database service
+            code
+            secret retirving
+            pg & kysely connection
+        query building
+            raw sql with prepared statements
+            kysely - prisma integration
+        dao example
+            crud
+            getAll - kysely advanced filtering & sorting with query-formatter code
+            getAllPopulated - kysely subqueries
+    fine grained authorization
+        context-service
+    esempio di endpoint - auth + db access + response
+    modifica utente su cognito
+        cognito-users-service
+        in che casi lo utilizzo
+    notifiche
+        non esposta creazione dalla api
+        create da altri dao, quando cè bisogno di mandarle
+        ses email dopo la creazione
+    test
+        Jest - local, esempio
+        Postman - deployed, authflow e esempio
+    API Gateway - congfig
+
+Esposizione dei servizi - ok
+    DNS
+        route 53 configurazione
+        domanin delegation
+    Certificati
+
+Frontend
+    lavoro in team - Spec Openapi come "contratto" tra back e front end
+    distribuzione cloudfront SPA
+
+Possibili evoluzioni
+    fare /bulk con S3 presigned-url
+    automation prisma schema
+		problema piu grosso: 
+			cloud formation non adatto
+		integrazione graduale senza conflitti
+			esempio aggiunta campo required: 
+				prima non required - aggiorno api - metto required e popolo campi lasciati null 
+    security: 
+		apigw: certificato / blocco ip 
+		cloudfront: WaF rate limiting, security
+        	cost implication
+    lambda ping to avoid cold start
+        cost implication
+
+Conclusioni
+    adozione da parte dell'azienda
+
+
+
+\texttt per bold monospace
+
+
+naming db service e api handler

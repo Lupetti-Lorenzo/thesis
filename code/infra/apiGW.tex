@@ -1,0 +1,17 @@
+const defaultCorsPreflightOptions = {
+			allowHeaders: aws_apigateway.Cors.DEFAULT_HEADERS,
+			allowMethods: aws_apigateway.Cors.ALL_METHODS,
+			allowCredentials: true,
+			allowOrigins: props.isProd ? appSpaUrl : aws_apigateway.Cors.ALL_ORIGINS,
+		} as aws_apigateway.CorsOptions;
+
+const api = new aws_apigateway.RestApi(this, "api-gateway", {
+    restApiName: this.getResourceName(CdkResourceKind.ApiGateway, `app`),
+    defaultCorsPreflightOptions,
+    defaultIntegration: singleApiIntegration,
+    binaryMediaTypes: ["application/pdf", "image/*"],
+    domainName: {
+        domainName: this.getDomain(props.domain.apiRecordName),
+        certificate,
+    },
+});
